@@ -64,4 +64,3 @@ GROUP BY
     ds.nome_sintoma
 ORDER BY
     total_ocorrencias DESC;
-

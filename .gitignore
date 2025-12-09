@@ -1,0 +1,14 @@
+# Ignorar arquivos Python compilados
+__pycache__/
+*.py[cod]
+
+# Ignorar dados brutos (O CSV é grande demais)
+*.csv
+
+# Ignorar ambiente virtual
+venv/
+.env
+
+# Ignorar configurações locais de IDE
+.vscode/
+.idea/

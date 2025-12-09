@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 DB_USER = "postgres"
-DB_PASSWORD = "2fast2YOU"
+DB_PASSWORD = "SUA_SENHA_POSTGRES"
 DB_HOST = "localhost"
 DB_PORT = "5432"
 DB_NAME = "esus_srag_db"
