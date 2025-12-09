@@ -85,6 +85,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TABLE IF EXISTS fato_testes_realizados CASCADE;
+
+CREATE TABLE fato_testes_realizados (
+    id_registro BIGSERIAL PRIMARY KEY,
+    fk_notificacao BIGINT REFERENCES fato_notificacoes(id_notificacao) ON DELETE CASCADE,
+    data_coleta DATE,
+    data_resultado DATE,
+    codigo_estado_teste SMALLINT,
+    fk_tipo_teste SMALLINT,       -- Sem REFERENCES por enquanto
+    fk_fabricante SMALLINT,       -- Sem REFERENCES por enquanto
+    fk_resultado_teste SMALLINT   -- Sem REFERENCES por enquanto
+);
+
 
 TRUNCATE TABLE 
     fato_notificacoes, 
