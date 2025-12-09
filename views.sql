@@ -6,17 +6,20 @@ SELECT
     COUNT(fn.id_notificacao) AS total_notificacoes,
     SUM(CASE WHEN fn.classificacao_final = 'Confirmado Laboratorial' THEN 1 ELSE 0 END) AS casos_confirmados,
     SUM(CASE WHEN fn.classificacao_final = 'Descartado' THEN 1 ELSE 0 END) AS casos_descartados,
-    SUM(CASE WHEN fn.evolucao_caso = 'Óbito por SRAG' THEN 1 ELSE 0 END) AS obitos
+    -- CORREÇÃO: Usamos o JOIN com Dim_Evolucao_Caso (de)
+    SUM(CASE WHEN de.descricao_evolucao = 'Óbito por SRAG' THEN 1 ELSE 0 END) AS obitos
 FROM
     fato_notificacoes fn
 JOIN
     dim_localidades dl ON fn.fk_localidade_residencia = dl.id_localidade
+-- NOVO JOIN necessário para obter o nome da evolução do caso:
+JOIN
+    dim_evolucao_caso de ON fn.fk_evolucao_caso = de.id_evolucao
 GROUP BY
     1, 2, 3
 ORDER BY
     fn.data_notificacao, dl.municipio_nome;
 
-COMMENT ON VIEW vw_casos_por_municipio IS 'Consolida casos confirmados, descartados e óbitos por município e data de notificação.';
 
 CREATE OR REPLACE VIEW vw_vacinacao_por_resultado AS
 SELECT
@@ -40,7 +43,7 @@ GROUP BY
 ORDER BY
     fn.classificacao_final, total_casos DESC;
 
-COMMENT ON VIEW vw_vacinacao_por_resultado IS 'Cruza o status vacinal do paciente com a classificação final do caso (confirmado/descartado).';
+
 
 CREATE OR REPLACE VIEW vw_sintomas_frequentes AS
 SELECT
@@ -63,4 +66,3 @@ GROUP BY
 ORDER BY
     total_ocorrencias DESC;
 
-COMMENT ON VIEW vw_sintomas_frequentes IS 'Lista a frequência dos sintomas relatados em casos com classificação final "Confirmado Laboratorial".';

@@ -10,7 +10,7 @@ CREATE TABLE log_alteracoes (
     dados_novos JSONB -- Armazena os dados da linha DEPOIS da alteração (para INSERT e UPDATE)
 );
 
-COMMENT ON TABLE log_alteracoes IS 'Tabela de auditoria para registrar todas as modificações nas tabelas FATO.';
+
 
 CREATE OR REPLACE FUNCTION ft_auditoria_notificacoes()
 RETURNS TRIGGER AS $$
@@ -50,7 +50,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION ft_auditoria_notificacoes() IS 'Função para registrar INSERT, UPDATE e DELETE na tabela fato_notificacoes.';
+
 
 CREATE TRIGGER tr_auditoria_notificacoes
 AFTER INSERT OR UPDATE OR DELETE ON fato_notificacoes

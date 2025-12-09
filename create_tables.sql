@@ -13,7 +13,6 @@ CREATE TABLE Dim_Condicoes (
     nome_condicao VARCHAR(100) UNIQUE NOT NULL
 );
 
-COMMENT ON TABLE Dim_Condicoes IS 'Tabela de dimensão contendo a lista única de condições pré-existentes dos pacientes.';
 
 CREATE TABLE Dim_Evolucao_Caso (
     id_evolucao SMALLINT PRIMARY KEY, -- Ex: 1  , 2, 3
