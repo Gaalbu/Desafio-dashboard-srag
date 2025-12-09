@@ -294,7 +294,30 @@ def run_etl_pipeline(file_path):
     dim_evolucao = dim_evolucao.rename(columns={'evolucaoCaso': 'descricao_evolucao'})
 
     df_fato_testes_realizados = process_testes_realizados(df_clean)
+
+    #Renomear para bater com o Banco de Dados
+    df_fato_testes_realizados = df_fato_testes_realizados.rename(columns={
+        'id_notificacao': 'fk_notificacao',
+        'codigo_tipo_teste': 'fk_tipo_teste',
+        'codigo_fabricante_teste': 'fk_fabricante',
+        'codigo_resultado_teste': 'fk_resultado_teste'
+        # codigo_estado_teste e data_coleta já estão certos
+    })
     
+    #Selecionar APENAS as colunas que existem no banco
+    colunas_banco_testes = [
+        'fk_notificacao', 
+        'data_coleta', 
+        'codigo_estado_teste', 
+        'fk_tipo_teste', 
+        'fk_fabricante', 
+        'fk_resultado_teste'
+    ]
+
+    # Filtra o DataFrame mantendo apenas essas colunas (se existirem)
+    cols_existentes = [c for c in colunas_banco_testes if c in df_fato_testes_realizados.columns]
+    df_fato_testes_realizados = df_fato_testes_realizados[cols_existentes]
+
     df_fato_sintoma = df_sintomas_exploded.merge(dim_sintomas, on='nome_sintoma', how='left')
     # Renomeia para bater com o banco (fk_notificacao, fk_sintoma)
     df_fato_sintoma = df_fato_sintoma.rename(columns={
@@ -406,7 +429,7 @@ def run_etl_pipeline(file_path):
         
         # Fato Testes - Precisamos garantir que as FKs (Tipo, Fabricante) existam. 
         # Se der erro aqui, comente temporariamente ou crie as dimensões de teste.
-        # df_fato_testes_realizados.to_sql('fato_testes_realizados', engine, if_exists='append', index=False)
+        df_fato_testes_realizados.to_sql('fato_testes_realizados', engine, if_exists='append', index=False)
         
         engine.dispose()
         print("\n✅ Pipeline ETL concluído com sucesso!")

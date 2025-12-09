@@ -6,13 +6,12 @@ SELECT
     COUNT(fn.id_notificacao) AS total_notificacoes,
     SUM(CASE WHEN fn.classificacao_final = 'Confirmado Laboratorial' THEN 1 ELSE 0 END) AS casos_confirmados,
     SUM(CASE WHEN fn.classificacao_final = 'Descartado' THEN 1 ELSE 0 END) AS casos_descartados,
-    -- CORREÇÃO: Usamos o JOIN com Dim_Evolucao_Caso (de)
-    SUM(CASE WHEN de.descricao_evolucao = 'Óbito por SRAG' THEN 1 ELSE 0 END) AS obitos
+    -- CORREÇÃO: Usando o texto exato que encontramos no banco ("Óbito")
+    SUM(CASE WHEN de.descricao_evolucao = 'Óbito' THEN 1 ELSE 0 END) AS obitos
 FROM
     fato_notificacoes fn
 JOIN
     dim_localidades dl ON fn.fk_localidade_residencia = dl.id_localidade
--- NOVO JOIN necessário para obter o nome da evolução do caso:
 JOIN
     dim_evolucao_caso de ON fn.fk_evolucao_caso = de.id_evolucao
 GROUP BY
