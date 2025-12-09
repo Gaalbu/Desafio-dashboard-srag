@@ -130,12 +130,9 @@ def process_localidades(df):
     Aplica regras de negócio para preencher Nulos em colunas-chave.
 """
 def intelligent_null_imputation(df):
-    """
-    Aplica regras de negócio para preencher Nulos e Corrigir Inconsistências.
-    """
+    
     print("Iniciando tratamento de nulos e correção cronológica...")
     
-    # --- 1. PREENCHIMENTO DE CLASSIFICAÇÃO FINAL ---
     df['classificacaoFinal'] = np.where(
         (df['classificacaoFinal'].isnull()) & (df['codigoResultadoTeste1'] == 1),
         'Confirmado Laboratorial',
@@ -148,27 +145,25 @@ def intelligent_null_imputation(df):
     )
     df['classificacaoFinal'] = df['classificacaoFinal'].fillna('Suspeito')
 
-    # --- 2. CORREÇÃO CRONOLÓGICA (O ERRO OCORREU AQUI) ---
     # Regra: dataInicioSintomas NÃO pode ser maior que dataNotificacao.
     # Se for, assumimos que o início foi no mesmo dia da notificação.
     
-    # Primeiro, preenche nulos de sintomas com notificação - 1 dia
     df['dataInicioSintomas'] = np.where(
         df['dataInicioSintomas'].isnull(),
         df['dataNotificacao'] - pd.Timedelta(days=1),
         df['dataInicioSintomas']
     )
     
-    # AGORA A CORREÇÃO DO CHECK VIOLATION:
     mask_erro_data = df['dataInicioSintomas'] > df['dataNotificacao']
-    # Se sintomas > notificação, define sintomas = notificação
+    
+    # Se DATA sintomas > DATA notificação, define DATA sintomas = DATA notificação
     df.loc[mask_erro_data, 'dataInicioSintomas'] = df.loc[mask_erro_data, 'dataNotificacao']
     
     # Mesma correção para dataEncerramento (não pode ser antes da notificação)
     mask_erro_fim = (df['dataEncerramento'] < df['dataNotificacao']) & (df['dataEncerramento'].notnull())
-    df.loc[mask_erro_fim, 'dataEncerramento'] = pd.NaT # Remove datas de encerramento impossíveis
+    df.loc[mask_erro_fim, 'dataEncerramento'] = pd.NaT 
 
-    # --- 3. DADOS SOCIODEMOGRÁFICOS ---
+    
     median_age = df['idade'].median()
     df['idade'] = df['idade'].fillna(median_age).astype(int)
     df['sexo'] = df['sexo'].fillna('IGNORADO')
@@ -264,6 +259,10 @@ def run_etl_pipeline(file_path):
     # 2. TRATAMENTO DE NULOS E VALORES INCONSISTENTES
     df_clean = intelligent_null_imputation(df_raw.copy())
 
+    print(f"Registros antes da limpeza de data: {len(df_clean)}")
+    df_clean = df_clean.dropna(subset=['dataNotificacao'])
+    print(f"Registros após remover datas nulas: {len(df_clean)}")
+
     # 3. CRIAÇÃO E PROCESSAMENTO DAS DIMENSÕES (MAPEAMENTO)
     
     # Dimensões Simples (Valores Únicos)
@@ -330,9 +329,9 @@ def run_etl_pipeline(file_path):
     ).rename(columns={'id_evolucao': 'fk_evolucao_caso'})
     
     # Tratamento de Booleanos (Postgres não aceita 'Sim'/'Não' automaticamente)
-    bool_map = {'Sim': True, 'Não': False, 'Ignorado': None}
-    df_fato_notificacoes['profissionalSaude'] = df_fato_notificacoes['profissionalSaude'].map(bool_map)
-    df_fato_notificacoes['profissionalSeguranca'] = df_fato_notificacoes['profissionalSeguranca'].map(bool_map)
+    bool_map = {'Sim': True, 'Não': False}
+    df_fato_notificacoes['profissionalSaude'] = df_fato_notificacoes['profissionalSaude'].map(bool_map).fillna(False)
+    df_fato_notificacoes['profissionalSeguranca'] = df_fato_notificacoes['profissionalSeguranca'].map(bool_map).fillna(False)
 
     # De: Nome no CSV/Pandas -> Para: Nome no PostgreSQL
     cols_map = {
