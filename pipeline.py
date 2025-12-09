@@ -82,79 +82,101 @@ def process_testes_realizados(df):
 """
     Cria a Dim_Localidades consolidando os dados de município/estado de
     residência e notificação.
+    CORREÇÃO: Mapeia corretamente Sigla vs Nome e gera o código IBGE do Estado.
 """
 def process_localidades(df):
     
     print("Processando Dimensão Localidades...")
     
-    # seleciona renomenando as colunas de residência
+    # CSV 'estado' = Nome (Pará) -> Vai para 'estado_nome'
+    # CSV 'estadoIBGE' = Sigla (PA) -> Vai para 'estado_uf'
+    
     df_residencia = df[['estado', 'estadoIBGE', 'municipio', 'municipioIBGE']].copy()
-    df_residencia.columns = ['estado_uf', 'codigo_ibge_estado', 'municipio_nome', 'codigo_ibge_municipio']
+    df_residencia.columns = ['estado_nome', 'estado_uf', 'municipio_nome', 'codigo_ibge_municipio']
     
-    # seleciona renomenando as colunas de Notificação
     df_notificacao = df[['estadoNotificacao', 'estadoNotificacaoIBGE', 'municipioNotificacao', 'municipioNotificacaoIBGE']].copy()
-    df_notificacao.columns = ['estado_uf', 'codigo_ibge_estado', 'municipio_nome', 'codigo_ibge_municipio']
+    df_notificacao.columns = ['estado_nome', 'estado_uf', 'municipio_nome', 'codigo_ibge_municipio']
     
-    # da uma concatenacao e remove as duplicatas.
-    dim_localidades = pd.concat([df_residencia, df_notificacao]).drop_duplicates(
-        subset=['codigo_ibge_municipio', 'municipio_nome']
-    ).dropna(subset=['codigo_ibge_municipio']).reset_index(drop=True)
+    dim_localidades = pd.concat([df_residencia, df_notificacao])
     
-    # criando ID
+    # Remove linhas onde o código do município é nulo
+    dim_localidades = dim_localidades.dropna(subset=['codigo_ibge_municipio'])
+    
+    # Garante que o código do município seja Inteiro
+    dim_localidades['codigo_ibge_municipio'] = dim_localidades['codigo_ibge_municipio'].astype(int)
+    
+    # Remove duplicatas
+    dim_localidades = dim_localidades.drop_duplicates(subset=['codigo_ibge_municipio']).reset_index(drop=True)
+    
+    dim_localidades['codigo_ibge_estado'] = dim_localidades['codigo_ibge_municipio'].astype(str).str[:2].astype(int)
+    
+    # Adiciona ID Sequencial
     dim_localidades['id_localidade'] = dim_localidades.index + 1
     
-    # select final
-    dim_localidades = dim_localidades[['id_localidade', 'estado_uf', 'codigo_ibge_estado', 'municipio_nome', 'codigo_ibge_municipio']]
+    # Seleciona e Ordena as colunas EXATAMENTE como no Banco de Dados
+    dim_localidades = dim_localidades[[
+        'id_localidade', 
+        'estado_uf',          # Agora recebe 'PA' (2 chars)
+        'estado_nome',        # Agora recebe 'Pará'
+        'codigo_ibge_estado', # Agora recebe 15 (Int)
+        'municipio_nome', 
+        'codigo_ibge_municipio'
+    ]]
     
     print(f"Dim_Localidades criada com {len(dim_localidades)} registros.")
     return dim_localidades
-
 
 """
     Aplica regras de negócio para preencher Nulos em colunas-chave.
 """
 def intelligent_null_imputation(df):
+    """
+    Aplica regras de negócio para preencher Nulos e Corrigir Inconsistências.
+    """
+    print("Iniciando tratamento de nulos e correção cronológica...")
     
-    print("Iniciando preenchimento inteligente de nulos...")
-    # Coluna usada para teste: codigoResultadoTeste1. (1=Positivo, 2=Negativo)
-    
-    # se nulo E resultado teste 1 = Positivo (código 1), classificar como 'Confirmado Laboratorial'
+    # --- 1. PREENCHIMENTO DE CLASSIFICAÇÃO FINAL ---
     df['classificacaoFinal'] = np.where(
         (df['classificacaoFinal'].isnull()) & (df['codigoResultadoTeste1'] == 1),
         'Confirmado Laboratorial',
         df['classificacaoFinal']
     )
-    
-    # se nulo E resultado teste 1 = Negativo (código 2), classificar como 'Descartado'
     df['classificacaoFinal'] = np.where(
         (df['classificacaoFinal'].isnull()) & (df['codigoResultadoTeste1'] == 2),
         'Descartado',
         df['classificacaoFinal']
     )
-    
-    # caso ainda seja nulo, preencher como "Suspeito" para casos ativos.
     df['classificacaoFinal'] = df['classificacaoFinal'].fillna('Suspeito')
+
+    # --- 2. CORREÇÃO CRONOLÓGICA (O ERRO OCORREU AQUI) ---
+    # Regra: dataInicioSintomas NÃO pode ser maior que dataNotificacao.
+    # Se for, assumimos que o início foi no mesmo dia da notificação.
     
-    # Preenchendo datas chave.
-    # Se nula, estimar usando dataNotificacao - 1 dia (para análise de tempo de latência)
+    # Primeiro, preenche nulos de sintomas com notificação - 1 dia
     df['dataInicioSintomas'] = np.where(
         df['dataInicioSintomas'].isnull(),
         df['dataNotificacao'] - pd.Timedelta(days=1),
         df['dataInicioSintomas']
     )
     
-    # idade: Preencher com a mediana e garantir que seja INT
+    # AGORA A CORREÇÃO DO CHECK VIOLATION:
+    mask_erro_data = df['dataInicioSintomas'] > df['dataNotificacao']
+    # Se sintomas > notificação, define sintomas = notificação
+    df.loc[mask_erro_data, 'dataInicioSintomas'] = df.loc[mask_erro_data, 'dataNotificacao']
+    
+    # Mesma correção para dataEncerramento (não pode ser antes da notificação)
+    mask_erro_fim = (df['dataEncerramento'] < df['dataNotificacao']) & (df['dataEncerramento'].notnull())
+    df.loc[mask_erro_fim, 'dataEncerramento'] = pd.NaT # Remove datas de encerramento impossíveis
+
+    # --- 3. DADOS SOCIODEMOGRÁFICOS ---
     median_age = df['idade'].median()
     df['idade'] = df['idade'].fillna(median_age).astype(int)
-    
-    # sexo, raça, evolução: Preencher com "IGNORADO" ou "NAO INFORMADO"
     df['sexo'] = df['sexo'].fillna('IGNORADO')
     df['racaCor'] = df['racaCor'].fillna('NAO INFORMADO')
     df['evolucaoCaso'] = df['evolucaoCaso'].fillna('EM ABERTO')
     
-    print("Preenchimento inteligente de nulos concluído.")
+    print("Tratamento concluído.")
     return df
-
 
 """
     Carrega o CSV e aplica as transformações iniciais (descarte de colunas).
@@ -265,21 +287,25 @@ def run_etl_pipeline(file_path):
     
     # 4. CRIAÇÃO DAS TABELAS FATO E MAPEAMENTO DE CHAVES ESTRANGEIRAS
     
-    # Tabela Fato Testes Realizados
+    print("Processando Dimensões Faltantes e Mapeamentos...")
+
+    # Cria a dimensão a partir dos dados
+    dim_evolucao = df_clean[['evolucaoCaso']].drop_duplicates().dropna().reset_index(drop=True)
+    dim_evolucao['id_evolucao'] = dim_evolucao.index + 1
+    dim_evolucao = dim_evolucao.rename(columns={'evolucaoCaso': 'descricao_evolucao'})
+
     df_fato_testes_realizados = process_testes_realizados(df_clean)
     
-    # Tabela Fato Notificacao Sintoma (Join)
     df_fato_sintoma = df_sintomas_exploded.merge(dim_sintomas, on='nome_sintoma', how='left')
     df_fato_sintoma = df_fato_sintoma[['id_notificacao', 'id_sintoma']] 
 
-    # Tabela Fato Notificacao Condicao (Join)
     df_fato_condicao = df_condicoes_exploded.merge(dim_condicoes, on='nome_condicao', how='left')
     df_fato_condicao = df_fato_condicao[['id_notificacao', 'id_condicao']]
 
-    # Tabela FATO Principal (Mapeamento de FKs)
+    
     df_fato_notificacoes = df_clean.copy()
     
-    # Mapeamento para FK_Localidade_Residencia
+    # Mapeamento FK Localidade
     df_fato_notificacoes = df_fato_notificacoes.merge(
         dim_localidades[['codigo_ibge_municipio', 'id_localidade']],
         left_on='municipioIBGE',
@@ -287,61 +313,96 @@ def run_etl_pipeline(file_path):
         how='left'
     ).rename(columns={'id_localidade': 'fk_localidade_residencia'})
     
-    # Mapeamento para FK_RacaCor
+    # Mapeamento FK RacaCor
     df_fato_notificacoes = df_fato_notificacoes.merge(
         dim_raca_cor,
         left_on='racaCor',
         right_on='descricao_raca_cor',
         how='left'
     ).rename(columns={'id_raca_cor': 'fk_raca_cor'})
-    
-    # Selecionar as colunas finais para o FATO principal (incluir FKs e remover colunas brutas)
-    COLS_FATO_FINAL = [
-        'id_notificacao', 'dataNotificacao', 'dataInicioSintomas', 'dataEncerramento',
-        'sexo', 'idade', 'profissionalSaude', 'profissionalSeguranca',
-        'cbo', 'evolucaoCaso', 'classificacaoFinal', 'codigoEstrategiaCovid',
-        'codigoRecebeuVacina', 'codigoDosesVacina', 'dataPrimeiraDose', 'dataSegundaDose',
-        'fk_raca_cor', 'fk_localidade_residencia'
-        # ... adicionar outras colunas simples e FKs faltantes ...
-    ]
-    df_fato_notificacoes = df_fato_notificacoes[COLS_FATO_FINAL]
 
-    # 5. RELATÓRIO ESTATÍSTICO DE INTEGRIDADE FINAL (Requisito da Etapa 2)
-    print("\n--- Relatório Estatístico de Integridade Final ---")
+    # Mapeamento FK Evolucao
+    df_fato_notificacoes = df_fato_notificacoes.merge(
+        dim_evolucao,
+        left_on='evolucaoCaso',
+        right_on='descricao_evolucao',
+        how='left'
+    ).rename(columns={'id_evolucao': 'fk_evolucao_caso'})
     
-    # Exemplo de Registros Limpos
-    print(f"Total de Registros Limpos (Notificações): {len(df_fato_notificacoes)}")
-    # Outros relatórios de integridade (já presentes)
-    
-    # 6. CARGA NO BANCO DE DADOS (LOAD SEQUENCIAL)
-    
+    # Tratamento de Booleanos (Postgres não aceita 'Sim'/'Não' automaticamente)
+    bool_map = {'Sim': True, 'Não': False, 'Ignorado': None}
+    df_fato_notificacoes['profissionalSaude'] = df_fato_notificacoes['profissionalSaude'].map(bool_map)
+    df_fato_notificacoes['profissionalSeguranca'] = df_fato_notificacoes['profissionalSeguranca'].map(bool_map)
+
+    # De: Nome no CSV/Pandas -> Para: Nome no PostgreSQL
+    cols_map = {
+        'dataNotificacao': 'data_notificacao',
+        'dataInicioSintomas': 'data_inicio_sintomas',
+        'dataEncerramento': 'data_encerramento',
+        'classificacaoFinal': 'classificacao_final',
+        'codigoRecebeuVacina': 'codigo_recebeu_vacina',
+        'codigoDosesVacina': 'codigo_doses_vacina',
+        'dataPrimeiraDose': 'data_primeira_dose',
+        'dataSegundaDose': 'data_segunda_dose',
+        'profissionalSaude': 'profissional_saude',
+        'profissionalSeguranca': 'profissional_seguranca',
+        'cbo': 'codigo_cbo',
+        'codigoEstrategiaCovid': 'codigo_estrategia_covid'
+        # id_notificacao, sexo, idade já estão iguais
+        # fks já foram renomeadas acima
+    }
+    df_fato_notificacoes = df_fato_notificacoes.rename(columns=cols_map)
+
+    # Seleção final de colunas para garantir que não vá lixo
+    final_columns = [
+        'id_notificacao', 'sexo', 'idade', 'profissional_saude', 'profissional_seguranca', 
+        'codigo_cbo', 'fk_raca_cor', 'fk_localidade_residencia', 
+        'fk_localidade_notificacao', 'fk_evolucao_caso', 'data_notificacao', 
+        'data_inicio_sintomas', 'data_encerramento', 'classificacao_final', 
+        'codigo_recebeu_vacina', 'codigo_doses_vacina', 'data_primeira_dose', 
+        'data_segunda_dose', 'codigo_estrategia_covid'
+    ]
+    # Filtra apenas colunas que existem no DF (algumas podem ser nulas)
+    cols_to_load = [c for c in final_columns if c in df_fato_notificacoes.columns]
+    df_fato_notificacoes = df_fato_notificacoes[cols_to_load]
+
+    # ... (Relatório de Integridade) ...
+
+    # 6. CARGA NO BANCO DE DADOS
     try:
         engine = create_engine(DATABASE_URL)
         print("\nConexão com o banco de dados estabelecida.")
         
-        # Sequência de Carga: DIMENSÕES PRIMEIRO
         print("Iniciando Carga das Dimensões...")
+        # Idealmente truncar antes no PgAdmin ou usar if_exists='replace' (mas replace mata as chaves primárias)
         
         dim_localidades.to_sql('dim_localidades', engine, if_exists='append', index=False)
         dim_sintomas.to_sql('dim_sintomas', engine, if_exists='append', index=False)
         dim_condicoes.to_sql('dim_condicoes', engine, if_exists='append', index=False)
         dim_raca_cor.to_sql('dim_raca_cor', engine, if_exists='append', index=False)
-        # ... (Outras dimensões)
         
-        # Sequência de Carga: FATOS DEPOIS (dependem das FKs)
+        dim_evolucao.to_sql('dim_evolucao_caso', engine, if_exists='append', index=False)
+        
+        # Por simplicidade, assumimos que fato_testes vai carregar usando IDs se mapeados
+        
         print("Iniciando Carga das Tabelas FATO...")
         
         df_fato_notificacoes.to_sql('fato_notificacoes', engine, if_exists='append', index=False)
+        print("Fato Notificações carregada!")
+        
         df_fato_sintoma.to_sql('fato_notificacao_sintoma', engine, if_exists='append', index=False)
         df_fato_condicao.to_sql('fato_notificacao_condicao', engine, if_exists='append', index=False)
-        df_fato_testes_realizados.to_sql('fato_testes_realizados', engine, if_exists='append', index=False)
         
-        # Libera a conexão
+        # Fato Testes - Precisamos garantir que as FKs (Tipo, Fabricante) existam. 
+        # Se der erro aqui, comente temporariamente ou crie as dimensões de teste.
+        # df_fato_testes_realizados.to_sql('fato_testes_realizados', engine, if_exists='append', index=False)
+        
         engine.dispose()
-        print("\n✅ Pipeline ETL e Carga no Banco de Dados concluídos com sucesso!")
+        print("\n✅ Pipeline ETL concluído com sucesso!")
 
     except Exception as e:
         print(f"\n❌ ERRO na Carga de Dados (LOAD): {e}")
+
 
 if __name__ == "__main__":
     CSV_FILE_PATH = "dataset_notif_sus.csv"

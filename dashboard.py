@@ -17,13 +17,15 @@ st.set_page_config(layout="wide", page_title="Dashboard SRAG - e-SUS Notifica")
 
 
 # pega o cache do streamlit e consulta nas iterações do bd
-@st.cache_data(ttl=600) # Cache por 600 segundos (10 minutos)
+@st.cache_data(ttl=600)
 def get_data_from_db(query):
-    """Cria a conexão e executa uma query SQL."""
+    """Cria a conexão, executa a query e padroniza os nomes das colunas."""
     try:
         engine = create_engine(DATABASE_URL)
         df = pd.read_sql(query, engine)
         engine.dispose()
+        # Garante que todos os nomes de coluna estão em minúsculas
+        df.columns = df.columns.str.lower() 
         return df
     except Exception as e:
         st.error(f"Erro ao conectar ou executar query no banco de dados: {e}")
@@ -86,6 +88,11 @@ st.markdown("---")
 
 # temporalidade dos casos 
 st.header("Evolução Diária de Casos Confirmados")
+
+st.header("DIAGNÓSTICO DE COLUNAS")
+st.write("Colunas no DataFrame filtrado:", df_casos_filtrado.columns.tolist())
+st.write(df_casos_filtrado.head())
+
 
 # Agrega por data para a série temporal
 df_serie = df_casos_filtrado.groupby('data_notificacao')['casos_confirmados'].sum().reset_index()
