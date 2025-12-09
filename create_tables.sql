@@ -8,8 +8,15 @@ CREATE TABLE Dim_Localidades (
     codigo_ibge_municipio INT UNIQUE NOT NULL
 );
 
+CREATE TABLE Dim_Condicoes (
+    id_condicao SMALLINT PRIMARY KEY,
+    nome_condicao VARCHAR(100) UNIQUE NOT NULL
+);
+
+COMMENT ON TABLE Dim_Condicoes IS 'Tabela de dimensão contendo a lista única de condições pré-existentes dos pacientes.';
+
 CREATE TABLE Dim_Evolucao_Caso (
-    id_evolucao SMALLINT PRIMARY KEY, -- Ex: 1, 2, 3
+    id_evolucao SMALLINT PRIMARY KEY, -- Ex: 1  , 2, 3
     descricao_evolucao VARCHAR(50) UNIQUE NOT NULL -- Ex: Em tratamento domiciliar, Óbito
 );
 
@@ -92,7 +99,18 @@ CREATE TABLE Fato_Testes_Realizados (
     codigo_estado_teste SMALLINT, -- Indica se o teste foi realizado no estado, fora ou ignorado
     fk_tipo_teste SMALLINT REFERENCES Dim_Tipos_Testes(id_tipo_teste),
     fk_fabricante SMALLINT REFERENCES Dim_Fabricantes(id_fabricante),
-    fk_resultado_teste SMALLINT REFERENCES Dim_Resultados_Teste(id_resultado),
+    fk_resultado_teste SMALLINT REFERENCES Dim_Resultados_Teste(id_resultado)
 
 );
 
+CREATE TABLE indicadores_municipais (
+    id_indicador SERIAL PRIMARY KEY,
+    fk_localidade INT REFERENCES dim_localidades(id_localidade), -- Chave estrangeira para a localidade
+    data_referencia DATE NOT NULL, 
+    taxa_positividade NUMERIC(5, 2) NOT NULL, -- Percentual 
+    total_testes INT NOT NULL,
+    total_positivos INT NOT NULL,
+    
+    -- Restrição de unicidade: garante apenas um indicador por município por dia
+    UNIQUE (fk_localidade, data_referencia)
+);
