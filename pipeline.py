@@ -296,11 +296,23 @@ def run_etl_pipeline(file_path):
     df_fato_testes_realizados = process_testes_realizados(df_clean)
     
     df_fato_sintoma = df_sintomas_exploded.merge(dim_sintomas, on='nome_sintoma', how='left')
-    df_fato_sintoma = df_fato_sintoma[['id_notificacao', 'id_sintoma']] 
+    # Renomeia para bater com o banco (fk_notificacao, fk_sintoma)
+    df_fato_sintoma = df_fato_sintoma.rename(columns={
+        'id_notificacao': 'fk_notificacao',
+        'id_sintoma': 'fk_sintoma'
+    })
+    # Seleciona as colunas com os nomes certos
+    df_fato_sintoma = df_fato_sintoma[['fk_notificacao', 'fk_sintoma']] 
 
+    # Condições
     df_fato_condicao = df_condicoes_exploded.merge(dim_condicoes, on='nome_condicao', how='left')
-    df_fato_condicao = df_fato_condicao[['id_notificacao', 'id_condicao']]
-
+    # Renomeia para bater com o banco (fk_notificacao, fk_condicao)
+    df_fato_condicao = df_fato_condicao.rename(columns={
+        'id_notificacao': 'fk_notificacao',
+        'id_condicao': 'fk_condicao'
+    })
+    # Seleciona as colunas com os nomes certos
+    df_fato_condicao = df_fato_condicao[['fk_notificacao', 'fk_condicao']]  
     
     df_fato_notificacoes = df_clean.copy()
     
