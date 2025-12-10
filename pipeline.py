@@ -8,7 +8,7 @@ import psycopg2
 
 # Configurações de conexão (Substitua pelos seus dados)
 DB_USER = "postgres"
-DB_PASSWORD = "2fast2YOU"
+DB_PASSWORD = "admin"
 DB_HOST = "localhost" # Ou endereço do seu servidor
 DB_PORT = "5432"
 DB_NAME = "esus_srag_db"
@@ -371,6 +371,7 @@ def run_etl_pipeline(file_path):
     # De: Nome no CSV/Pandas -> Para: Nome no PostgreSQL
     cols_map = {
         'dataNotificacao': 'data_notificacao',
+        'codigoLaboratorioPrimeiraDose': 'nome_fabricante_vacina',
         'dataInicioSintomas': 'data_inicio_sintomas',
         'dataEncerramento': 'data_encerramento',
         'classificacaoFinal': 'classificacao_final',
@@ -389,7 +390,7 @@ def run_etl_pipeline(file_path):
 
     # Seleção final de colunas para garantir que não vá lixo
     final_columns = [
-        'id_notificacao', 'sexo', 'idade', 'profissional_saude', 'profissional_seguranca', 
+        'nome_fabricante_vacina', 'id_notificacao', 'sexo', 'idade', 'profissional_saude', 'profissional_seguranca', 
         'codigo_cbo', 'fk_raca_cor', 'fk_localidade_residencia', 
         'fk_localidade_notificacao', 'fk_evolucao_caso', 'data_notificacao', 
         'data_inicio_sintomas', 'data_encerramento', 'classificacao_final', 

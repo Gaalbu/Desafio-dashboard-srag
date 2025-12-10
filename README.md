@@ -27,3 +27,25 @@ Clone o repositório e instale as dependências:
 git clone [https://github.com/Gaalbu/esus-srag-dashboard.git](https://github.com/Gaalbu/esus-srag-dashboard.git)
 pip install -r requirements.txt
 ```
+
+### Passo 2: Instalar Dependências
+No terminal, na pasta do projeto:
+```bash
+pip install -r requirements.txt
+```
+
+### Passo 3: Executar o ETL (Carga de Dados)
+Certifique-se de que o arquivo `dataset_notif_sus.csv` está na pasta do projeto (ou ajuste o caminho no código).
+```bash
+python pipeline.py
+```
+
+Aguarde a mensagem: *"✅ Pipeline ETL concluído com sucesso!"*
+
+### Passo 4: Abrir o Dashboard
+Rode o comando do Streamlit:
+```bash
+streamlit run app.py
+```
+
+O navegador abrirá automaticamente com os gráficos, mapas e análises.

@@ -76,3 +76,30 @@ Ajustes realizados no SQL após auditoria dos resultados do Dashboard.
 | **Func `fx_calcular_taxa_positividade`** | Referência de coluna corrigida de `codigo_resultado_teste` para **`fk_resultado_teste`**. | Permitiu o cálculo correto e a inserção na tabela `indicadores_municipais`. |
 
 *Documento gerado automaticamente após execução do Pipeline v1.0.*
+
+
+## 5. REVISÃO DE INTERFACE E MAPEAMENTO (DASHBOARD v1.1)
+
+Alterações realizadas na camada de visualização e nas Views de suporte para corrigir inconsistências semânticas identificadas na fase de testes finais.
+
+| Objeto / Componente | Alteração Realizada | Justificativa Técnica / Solução |
+| :--- | :--- | :--- |
+| **View `vw_analise_laboratorial`** | Injeção de constante: `1 AS source_id`. | **Correção de Mapeamento (Business Rule):** A tabela fato original trazia IDs de notificação variáveis na coluna de origem. Foi fixado o ID 1 ("LACEN") diretamente na View para garantir que o Dashboard reconheça a unicidade da fonte processadora, corrigindo a classificação errônea de "Laboratório Externo/Outro". |
+| **Dashboard (Aba Laboratório)** | Substituição de Gráfico: "Tipo de Teste" $\rightarrow$ "Top Municípios Solicitantes". | **Qualidade de Dados (Data Sparsity):** A coluna `tipo_teste` apresentava cardinalidade irrelevante (100% "Não Informado" ou nulos). O gráfico circular foi substituído por um gráfico de barras horizontal listando os municípios com maior volume de requisições, agregando valor analítico real. |
+| **Dashboard (Aba Laboratório)** | Reestruturação de Layout (Gráfico de Fabricante). | **Qualidade de Dados:** A coluna `fabricante` apresentava nulidade total. O layout foi ajustado para priorizar a visualização do Laboratório Executante e dos Municípios Solicitantes. |
+
+## 6. CONSOLIDAÇÃO E INTEGRIDADE (DEPLOYMENT)
+
+Unificação dos artefatos SQL (`DDL`, `DML`, `Views` e `Triggers`) em um script único de execução (`script_banco_completo.sql`) para garantir a reprodutibilidade do ambiente.
+
+### 6.1. Tratamento de Conflitos em Views
+* **Problema:** Erro PostgreSQL `42P16` (*cannot change name of view column*) detectado ao tentar atualizar a estrutura das Views sem recriá-las.
+* **Solução:** Implementação sistemática do comando `DROP VIEW IF EXISTS ... CASCADE` antes da definição de cada View.
+* **Impacto:** Permite a atualização contínua do esquema analítico sem necessidade de *drop* total do banco de dados, preservando os dados persistidos nas tabelas Fato e Dimensão.
+
+### 6.2. Validação de Auditoria
+* **Status:** Confirmado.
+* **Mecanismo:** A tabela `log_alteracoes` e o trigger `tr_auditoria_notificacoes` foram integrados ao script mestre. O sistema agora registra automaticamente metadados (usuário, data, dados antigos vs. novos) para qualquer operação de `INSERT`, `UPDATE` ou `DELETE` na tabela `fato_notificacoes`.
+
+---
+*Atualização do Log: Versão Final para Entrega (Fix LACEN & Visualização).*
