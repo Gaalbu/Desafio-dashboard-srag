@@ -1,0 +1,35 @@
+RELATÓRIO ESTATÍSTICO DE INTEGRIDADE DE DADOS
+
+1. PERCENTUAL DE DADOS FALTANTES (MISSING DATA)
+A análise indicou que as colunas referentes a testes laboratoriais adicionais (3º e 4º teste) apresentam vacância quase total.
+
+- Testes Laboratoriais (3 e 4): Mais de 99.4% dos dados estão ausentes.
+- Fabricantes de Testes: Aproximadamente 99.9% não informados para testes secundários.
+- Dados Demográficos (Idade e Sexo): 0% de dados faltantes (completude total).
+
+Justificativa: A alta taxa de nulos nas colunas de testes valida a estratégia de normalização (Unpivot) utilizada no ETL, movendo esses dados para uma tabela fato específica (Fato_Testes_Realizados) e economizando armazenamento.
+
+2. DETECÇÃO DE OUTLIERS E INCONSISTÊNCIAS
+Foram aplicadas as regras de negócio definidas no script Python para validar a coerência lógica dos dados.
+
+- Cronologia Inválida: 47 registros detectados.
+  Descrição: Data de Início de Sintomas posterior à Data de Notificação.
+  Ação do Pipeline: Correção automática aplicada (data de início ajustada para igualar a data de notificação).
+
+- Outliers de Idade: 0 registros detectados.
+  Critério: Idade menor que 0 ou maior que 120 anos.
+  Conclusão: Os dados demográficos de idade são consistentes.
+
+3. IMPACTO DA LIMPEZA E NORMALIZAÇÃO
+Métricas sobre o volume de dados transformados ou removidos durante o processo de ETL.
+
+- Registros Descartados: 8 linhas.
+  Motivo: Campo 'dataNotificacao' vazio. Registros sem referência temporal são inválidos para a série histórica.
+  Impacto: Perda de dados irrelevante (0.005% do total).
+
+- Registros Normalizados (Sintomas): 77.781 registros.
+  Descrição: Campos contendo múltiplos sintomas (ex: "Febre, Tosse") foram atomizados.
+  Resultado: Estes registros foram expandidos para a tabela auxiliar 'Fato_Notificacao_Sintoma', permitindo contagem individualizada.
+
+CONCLUSÃO
+O conjunto de dados apresenta alta integridade nos campos fundamentais para análise epidemiológica. A estratégia de ETL adotada foi eficaz para tratar a esparsidade dos dados de testagem e corrigir as poucas inconsistências cronológicas encontradas, garantindo a qualidade para o Data Warehouse.

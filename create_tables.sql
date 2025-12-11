@@ -85,7 +85,9 @@ CREATE TABLE Fato_Testes_Realizados (
     data_coleta DATE,
     data_resultado DATE,
     codigo_estado_teste SMALLINT,
-    fk_fabricante SMALLINT,       
+    fk_tipo_teste SMALLINT,
+    fk_fabricante SMALLINT,
+    fk_resultado_teste SMALLINT
 );
 
 CREATE TABLE indicadores_municipais (
@@ -185,14 +187,14 @@ SELECT
     dl.municipio_nome,
     COALESCE(dt.descricao_tipo_teste, 'Tipo Não Informado') as tipo_teste,
     COALESCE(df.nome_fabricante, 'Fabricante Não Informado') as fabricante,
-    ftr.fk_notificacao as source_id,
+    1 as source_id,
     COUNT(*) as total_testes
-FROM fato_testes_realizados ftr
+FROM Fato_Testes_Realizados ftr
 JOIN fato_notificacoes fn ON ftr.fk_notificacao = fn.id_notificacao
 JOIN dim_localidades dl ON fn.fk_localidade_residencia = dl.id_localidade
 LEFT JOIN dim_tipos_testes dt ON ftr.fk_tipo_teste = dt.id_tipo_teste
 LEFT JOIN dim_fabricantes df ON ftr.fk_fabricante = df.id_fabricante
-GROUP BY 1, 2, 3, 4, 5, 6;
+GROUP BY 1, 2, 3, 4, 5;
 
 
 CREATE OR REPLACE FUNCTION ft_auditoria_notificacoes()

@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 import psycopg2 
 
 DB_USER = "postgres"
-DB_PASSWORD = "senha original"
+DB_PASSWORD = "admin"
 DB_HOST = "localhost" 
 DB_PORT = "5432"
 DB_NAME = "esus_srag_db"
