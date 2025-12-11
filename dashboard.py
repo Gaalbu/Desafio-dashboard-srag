@@ -18,16 +18,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 DB_USER = "postgres"
-DB_PASSWORD = "admin" 
+DB_PASSWORD = "2735" 
 DB_HOST = "localhost"
 DB_PORT = "5432"
 DB_NAME = "esus_srag_db"
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
+
 @st.cache_data(ttl=600)
 def get_data(query):
     try:
-        engine = create_engine(DATABASE_URL, connect_args={'client_encoding': 'utf8'})
+        engine = create_engine(DATABASE_URL, connect_args={'client_encoding': 'LATIN1'})
         df = pd.read_sql(query, engine)
         engine.dispose()
         return df
@@ -35,12 +36,16 @@ def get_data(query):
         st.error(f"Erro ao conectar no banco: {e}")
         return pd.DataFrame()
 
+
 @st.cache_data
 def get_geojson_brasil():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     try:
-        with urlopen(url) as r: return json.load(r)
-    except: return None
+        with urlopen(url) as r: 
+            return json.load(r)
+    except:
+        return None
+
 
 with st.spinner('Processando dados do Data Warehouse...'):
     df_perfil = get_data("SELECT * FROM vw_perfil_epidemiologico")
@@ -49,7 +54,7 @@ with st.spinner('Processando dados do Data Warehouse...'):
     df_sintomas = get_data("SELECT * FROM vw_sintomas_frequentes")
     df_laboratorio = get_data("SELECT * FROM vw_analise_laboratorial")
 
-    coluna_id_lab = 'source_id' # Nome da coluna que traz o ID
+    coluna_id_lab = 'source_id'
 
     if not df_laboratorio.empty and coluna_id_lab not in df_laboratorio.columns:
         df_laboratorio[coluna_id_lab] = 1 
@@ -65,6 +70,7 @@ with st.spinner('Processando dados do Data Warehouse...'):
     else:
         df_laboratorio['nome_laboratorio'] = []
 
+
 # --- FILTROS ---
 st.sidebar.header("Filtros")
 
@@ -72,7 +78,9 @@ if not df_perfil.empty and 'estado_uf' in df_perfil.columns:
     lista_estados = ['Todos'] + sorted(df_perfil['estado_uf'].dropna().unique().tolist())
 else:
     lista_estados = ['Todos']
+
 estado_sel = st.sidebar.selectbox("Estado (UF):", lista_estados)
+
 
 lista_municipios = ['Todos']
 if not df_perfil.empty and 'municipio_nome' in df_perfil.columns:
@@ -84,22 +92,28 @@ if not df_perfil.empty and 'municipio_nome' in df_perfil.columns:
 
 municipio_sel = st.sidebar.selectbox("Município:", lista_municipios)
 
-# Função de filtro universal
+
 def filtrar(df, estado, municipio):
-    if df.empty: return df
+    if df.empty: 
+        return df
+
     out = df.copy()
+
     if estado != 'Todos' and 'estado_uf' in out.columns:
         out = out[out['estado_uf'] == estado]
+
     if municipio != 'Todos' and 'municipio_nome' in out.columns:
         out = out[out['municipio_nome'] == municipio]
+
     return out
 
-# Aplicando filtros
+
 df_perfil_f = filtrar(df_perfil, estado_sel, municipio_sel)
 df_temporal_f = filtrar(df_temporal, estado_sel, municipio_sel)
 df_vacina_f = filtrar(df_vacinacao, estado_sel, municipio_sel)
 df_sintomas_f = filtrar(df_sintomas, estado_sel, municipio_sel)
 df_laboratorio_f = filtrar(df_laboratorio, estado_sel, municipio_sel)
+
 
 # --- KPIs ---
 st.title("🇧🇷 Monitoramento SRAG - Visão Nacional")
@@ -120,34 +134,46 @@ if not df_perfil_f.empty:
 else:
     st.warning("Sem dados para exibir.")
 
-# abas e graficos
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗺️ Mapa", "📈 Evolução", "👥 Perfil", "💉 Vacina & Sintomas", "🧪 Laboratório"])
 
-# Chave dinâmica
 key_suffix = f"{estado_sel}_{municipio_sel}"
+
 
 with tab1:
     st.subheader("Distribuição Geográfica")
+    
     if not df_perfil_f.empty:
         df_mapa = df_perfil_f.groupby(['estado_uf'])['casos_confirmados'].sum().reset_index()
         geo = get_geojson_brasil()
+
         if geo:
             fig_mapa = px.choropleth_mapbox(
-                df_mapa, geojson=geo, locations='estado_uf', featureidkey='properties.sigla',
-                color='casos_confirmados', color_continuous_scale="Reds",
-                mapbox_style="carto-positron", zoom=3, center={"lat": -14.2, "lon": -51.9},
-                opacity=0.7, hover_name='estado_uf'
+                df_mapa, 
+                geojson=geo, 
+                locations='estado_uf', 
+                featureidkey='properties.sigla',
+                color='casos_confirmados', 
+                color_continuous_scale="Reds",
+                mapbox_style="carto-positron", 
+                zoom=3, 
+                center={"lat": -14.2, "lon": -51.9},
+                opacity=0.7, 
+                hover_name='estado_uf'
             )
             fig_mapa.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=500)
             st.plotly_chart(fig_mapa, use_container_width=True, key=f"mapa_{key_suffix}")
 
+
 with tab2:
     st.subheader("Curva Epidêmica")
+
     if not df_temporal_f.empty:
         df_temporal_f['data_notificacao'] = pd.to_datetime(df_temporal_f['data_notificacao'])
         df_line = df_temporal_f.groupby('data_notificacao')[['casos_confirmados', 'obitos']].sum().reset_index()
         
         c1, c2 = st.columns(2)
+        
         with c1:
             st.markdown("### 🦠 Casos Confirmados")
             if len(df_line) <= 1 or df_line['casos_confirmados'].sum() == 0:
@@ -166,8 +192,10 @@ with tab2:
             fig_d.update_layout(height=400)
             st.plotly_chart(fig_d, use_container_width=True, key=f"chart_obitos_{key_suffix}")
 
+
 with tab3:
     c1, c2 = st.columns(2)
+
     with c1:
         st.subheader("Sexo")
         if 'sexo' in df_perfil_f.columns and not df_perfil_f.empty:
@@ -184,39 +212,47 @@ with tab3:
             fig_idade.update_layout(height=400)
             st.plotly_chart(fig_idade, use_container_width=True, key=f"chart_idade_{key_suffix}")
 
+
 with tab4:
     c1, c2 = st.columns([2,1])
+
     with c1:
         st.subheader("Vacinação vs Desfecho")
+
         if not df_vacina_f.empty:
-         
             cols_group = [c for c in ['status_vacinal', 'classificacao_final'] if c in df_vacina_f.columns]
+
             if len(cols_group) == 2:
                 df_v_agrupado = df_vacina_f.groupby(cols_group)['total_casos'].sum().reset_index()
+
                 fig_vac = px.bar(
-                    df_v_agrupado, x='status_vacinal', y='total_casos', 
-                    color='classificacao_final', barmode='group',
+                    df_v_agrupado, 
+                    x='status_vacinal', 
+                    y='total_casos', 
+                    color='classificacao_final', 
+                    barmode='group',
                     color_discrete_map={'Confirmado Laboratorial': '#FF9900', 'Descartado': '#109618'}
                 )
                 fig_vac.update_layout(height=400)
                 st.plotly_chart(fig_vac, use_container_width=True, key=f"chart_vacina_{key_suffix}")
             else:
                 st.warning("Dados de vacinação insuficientes para gerar o gráfico.")
-            
+
     with c2:
         st.subheader("Top Sintomas")
         if not df_sintomas_f.empty:
             df_s_agrupado = df_sintomas_f.groupby('nome_sintoma')['total_ocorrencias'].sum().reset_index()
             df_top = df_s_agrupado.sort_values('total_ocorrencias').tail(10)
+
             fig_sint = px.bar(df_top, x='total_ocorrencias', y='nome_sintoma', orientation='h')
             fig_sint.update_layout(height=400)
             st.plotly_chart(fig_sint, use_container_width=True, key=f"chart_sintomas_{key_suffix}")
+
 
 with tab5:
     st.subheader("Análise Laboratorial")
     
     if not df_laboratorio_f.empty:
-        # Identifica o Laboratório Principal
         top_lab = df_laboratorio_f.groupby('nome_laboratorio')['total_testes'].sum().reset_index().sort_values('total_testes', ascending=False)
         
         if not top_lab.empty:
@@ -226,12 +262,16 @@ with tab5:
             nome_principal = "Dados Indisponíveis"
             total_exams = 0
 
-        st.metric(label="Principal Laboratório Processador", value=nome_principal, delta=f"{total_exams:,.0f} exames processados".replace(",", "."))
+        st.metric(
+            label="Principal Laboratório Processador", 
+            value=nome_principal, 
+            delta=f"{total_exams:,.0f} exames processados".replace(",", ".")
+        )
+
         st.markdown("---")
 
         c1, c2 = st.columns(2)
         
-        # GRÁFICO 1: Top Municípios Solicitantes
         with c1:
             st.markdown("#### 📍 Top Municípios Solicitantes")
             df_city = df_laboratorio_f.groupby('municipio_nome')['total_testes'].sum().reset_index()
@@ -239,7 +279,11 @@ with tab5:
             
             if not df_city_top.empty:
                 fig_city = px.bar(
-                    df_city_top, x='total_testes', y='municipio_nome', orientation='h', text_auto='.2s',
+                    df_city_top, 
+                    x='total_testes', 
+                    y='municipio_nome', 
+                    orientation='h', 
+                    text_auto='.2s',
                     color_discrete_sequence=['#0083B8']
                 )
                 fig_city.update_layout(height=500, xaxis_title="Volume de Exames", yaxis_title=None)
@@ -247,7 +291,6 @@ with tab5:
             else:
                 st.info("Dados de município não disponíveis.")
 
-        # GRÁFICO 2: Volume por Laboratório
         with c2:
             st.markdown("#### 🏥 Volume por Laboratório Executante")
             df_quem_fez = df_laboratorio_f.groupby('nome_laboratorio')['total_testes'].sum().reset_index()
@@ -255,7 +298,11 @@ with tab5:
             
             if not df_quem_fez_top.empty:
                 fig_quem = px.bar(
-                    df_quem_fez_top, x='total_testes', y='nome_laboratorio', orientation='h', text_auto='.2s',
+                    df_quem_fez_top, 
+                    x='total_testes', 
+                    y='nome_laboratorio', 
+                    orientation='h', 
+                    text_auto='.2s',
                     color_discrete_sequence=['#005F87']
                 )
                 fig_quem.update_layout(height=500, xaxis_title="Total de Testes", yaxis_title=None)

@@ -52,6 +52,12 @@ CREATE TABLE Dim_Resultados_Teste (
     descricao_resultado VARCHAR(50) UNIQUE NOT NULL
 );
 
+CREATE TABLE Dim_Status_Vacinal (
+    id_status_vacinal SMALLINT PRIMARY KEY,
+    descricao VARCHAR(50) UNIQUE NOT NULL
+);
+
+
 -- Fato Notificações (Tabela Principal)
 CREATE TABLE Fato_Notificacoes (
     id_notificacao BIGSERIAL PRIMARY KEY,
@@ -71,15 +77,28 @@ CREATE TABLE Fato_Notificacoes (
     data_encerramento DATE,
     classificacao_final VARCHAR(50) NOT NULL,
     
-    codigo_recebeu_vacina SMALLINT,
-    codigo_doses_vacina VARCHAR(100), -- Ajustado para aceitar texto/listas
+    -- 🔥 ALTERAÇÃO PEDIDA: vira FK
+    fk_status_vacinal SMALLINT REFERENCES Dim_Status_Vacinal(id_status_vacinal),
+    
     data_primeira_dose DATE,
     data_segunda_dose DATE,
-    nome_fabricante_vacina VARCHAR(255), -- Adicionado coluna nova
+    nome_fabricante_vacina VARCHAR(255),
     codigo_estrategia_covid INT,
     
     CHECK (data_inicio_sintomas <= data_notificacao)
 );
+
+CREATE TABLE Dim_Doses_Vacina (
+    id_dose SMALLINT PRIMARY KEY,
+    descricao VARCHAR(20) UNIQUE NOT NULL
+);
+
+CREATE TABLE Fato_Notificacao_Dose (
+    fk_notificacao BIGINT REFERENCES Fato_Notificacoes(id_notificacao) ON DELETE CASCADE,
+    fk_dose SMALLINT REFERENCES Dim_Doses_Vacina(id_dose),
+    PRIMARY KEY (fk_notificacao, fk_dose)
+);
+
 
 -- Tabelas de Ligação (NxN)
 CREATE TABLE Fato_Notificacao_Sintoma (
