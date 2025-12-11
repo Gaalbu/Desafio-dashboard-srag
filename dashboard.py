@@ -18,7 +18,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 DB_USER = "postgres"
-DB_PASSWORD = "admin" 
+DB_PASSWORD = "senha original" 
 DB_HOST = "localhost"
 DB_PORT = "5432"
 DB_NAME = "esus_srag_db"

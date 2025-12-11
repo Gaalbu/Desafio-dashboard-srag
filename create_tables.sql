@@ -1,8 +1,4 @@
--- =========================================================
--- 1. CRIAÇÃO DAS TABELAS DIMENSÃO E FATO (DDL)
--- =========================================================
 
--- Dimensão Localidades
 CREATE TABLE Dim_Localidades (
     id_localidade SERIAL PRIMARY KEY,
     estado_uf VARCHAR(2), 
@@ -12,31 +8,26 @@ CREATE TABLE Dim_Localidades (
     codigo_ibge_municipio INT UNIQUE NOT NULL
 );
 
--- Dimensão Condições
 CREATE TABLE Dim_Condicoes (
     id_condicao SMALLINT PRIMARY KEY,
     nome_condicao VARCHAR(100) UNIQUE NOT NULL
 );
 
--- Dimensão Evolução
 CREATE TABLE Dim_Evolucao_Caso (
     id_evolucao SMALLINT PRIMARY KEY,
     descricao_evolucao VARCHAR(50) UNIQUE NOT NULL 
 );
 
--- Dimensão Raça/Cor
 CREATE TABLE Dim_Raca_Cor (
     id_raca_cor SMALLINT PRIMARY KEY,
     descricao_raca_cor VARCHAR(50) UNIQUE NOT NULL
 );
 
--- Dimensão Sintomas
 CREATE TABLE Dim_Sintomas (
     id_sintoma SMALLINT PRIMARY KEY,
     nome_sintoma VARCHAR(100) UNIQUE NOT NULL
 );
 
--- Tabelas Auxiliares de Teste (Mesmo que vazias, mantemos a estrutura)
 CREATE TABLE Dim_Tipos_Testes (
     id_tipo_teste SMALLINT PRIMARY KEY, 
     descricao_tipo_teste VARCHAR(100) UNIQUE NOT NULL
@@ -47,19 +38,14 @@ CREATE TABLE Dim_Fabricantes (
     nome_fabricante VARCHAR(100) UNIQUE NOT NULL
 );
 
-CREATE TABLE Dim_Resultados_Teste (
-    id_resultado SMALLINT PRIMARY KEY,
-    descricao_resultado VARCHAR(50) UNIQUE NOT NULL
-);
 
--- Fato Notificações (Tabela Principal)
 CREATE TABLE Fato_Notificacoes (
     id_notificacao BIGSERIAL PRIMARY KEY,
-    sexo VARCHAR(20), -- Aumentado para segurança
+    sexo VARCHAR(20),
     idade INT CHECK (idade >= 0),
     profissional_saude BOOLEAN NOT NULL,
     profissional_seguranca BOOLEAN NOT NULL,
-    codigo_cbo VARCHAR(255), -- Ajustado conforme correções
+    codigo_cbo VARCHAR(255),
     
     fk_raca_cor SMALLINT REFERENCES Dim_Raca_Cor(id_raca_cor),
     fk_localidade_residencia INT REFERENCES Dim_Localidades(id_localidade),
@@ -72,16 +58,15 @@ CREATE TABLE Fato_Notificacoes (
     classificacao_final VARCHAR(50) NOT NULL,
     
     codigo_recebeu_vacina SMALLINT,
-    codigo_doses_vacina VARCHAR(100), -- Ajustado para aceitar texto/listas
+    codigo_doses_vacina VARCHAR(100),
     data_primeira_dose DATE,
     data_segunda_dose DATE,
-    nome_fabricante_vacina VARCHAR(255), -- Adicionado coluna nova
+    nome_fabricante_vacina VARCHAR(255),
     codigo_estrategia_covid INT,
     
     CHECK (data_inicio_sintomas <= data_notificacao)
 );
 
--- Tabelas de Ligação (NxN)
 CREATE TABLE Fato_Notificacao_Sintoma (
     fk_notificacao BIGINT REFERENCES Fato_Notificacoes(id_notificacao) ON DELETE CASCADE,
     fk_sintoma SMALLINT REFERENCES Dim_Sintomas(id_sintoma),
@@ -94,19 +79,15 @@ CREATE TABLE Fato_Notificacao_Condicao (
     PRIMARY KEY (fk_notificacao, fk_condicao)
 );
 
--- Fato Testes Realizados (Refeita para ser flexível com dados nulos)
 CREATE TABLE Fato_Testes_Realizados (
     id_registro BIGSERIAL PRIMARY KEY,
     fk_notificacao BIGINT REFERENCES Fato_Notificacoes(id_notificacao) ON DELETE CASCADE,
     data_coleta DATE,
     data_resultado DATE,
     codigo_estado_teste SMALLINT,
-    fk_tipo_teste SMALLINT,       -- Sem Constraint rígida para evitar erros de carga
     fk_fabricante SMALLINT,       
-    fk_resultado_teste SMALLINT   
 );
 
--- Tabela de Indicadores Agregados
 CREATE TABLE indicadores_municipais (
     id_indicador SERIAL PRIMARY KEY,
     fk_localidade INT REFERENCES dim_localidades(id_localidade),
@@ -117,7 +98,6 @@ CREATE TABLE indicadores_municipais (
     UNIQUE (fk_localidade, data_referencia)
 );
 
--- Tabela de Logs (Auditoria)
 CREATE TABLE log_alteracoes (
     id_log BIGSERIAL PRIMARY KEY,
     tabela_afetada VARCHAR(50) NOT NULL,
@@ -129,9 +109,6 @@ CREATE TABLE log_alteracoes (
     dados_novos JSONB
 );
 
--- =========================================================
--- 2. VIEWS (CAMADA DE APRESENTAÇÃO)
--- =========================================================
 
 CREATE OR REPLACE VIEW vw_casos_por_municipio AS
 SELECT
@@ -208,20 +185,15 @@ SELECT
     dl.municipio_nome,
     COALESCE(dt.descricao_tipo_teste, 'Tipo Não Informado') as tipo_teste,
     COALESCE(df.nome_fabricante, 'Fabricante Não Informado') as fabricante,
-    fr.descricao_resultado as resultado,
-    ftr.fk_notificacao as source_id, -- Usado para identificar laboratório no Python
+    ftr.fk_notificacao as source_id,
     COUNT(*) as total_testes
 FROM fato_testes_realizados ftr
 JOIN fato_notificacoes fn ON ftr.fk_notificacao = fn.id_notificacao
 JOIN dim_localidades dl ON fn.fk_localidade_residencia = dl.id_localidade
 LEFT JOIN dim_tipos_testes dt ON ftr.fk_tipo_teste = dt.id_tipo_teste
 LEFT JOIN dim_fabricantes df ON ftr.fk_fabricante = df.id_fabricante
-LEFT JOIN dim_resultados_teste fr ON ftr.fk_resultado_teste = fr.id_resultado
 GROUP BY 1, 2, 3, 4, 5, 6;
 
--- =========================================================
--- 3. TRIGGERS E FUNCTIONS (LÓGICA DE NEGÓCIO)
--- =========================================================
 
 CREATE OR REPLACE FUNCTION ft_auditoria_notificacoes()
 RETURNS TRIGGER AS $$
